@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  VIEWER
+  EJECUTIVO
+  FACTURACION
+  SUPERVISOR
+  ADMIN
+}
+
+enum PermissionModule {
+  // Add your app-specific modules here.
+  // These are the base modules — extend as needed.
+  dashboard
+  administracion
+  // ejemplo: casos
+  // ejemplo: cotizaciones
+}
+
+enum PermissionAction {
+  ver
+  crear
+  editar
+  eliminar
+  // Add app-specific actions here
+  // ejemplo: aprobar
+  // ejemplo: rechazar
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+// IMPORTANT: Every new migration must include:
+//   GRANT SELECT, INSERT, UPDATE, DELETE ON public.nueva_tabla TO authenticated;
+//   GRANT SELECT, INSERT, UPDATE, DELETE ON public.nueva_tabla TO service_role;
+//   ALTER TABLE public.nueva_tabla ENABLE ROW LEVEL SECURITY;
+
+model User {
+  id               String   @id @default(uuid()) @db.Uuid
+  email            String   @unique
+  name             String
+  role             UserRole @default(VIEWER)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  permissions        UserPermission[]
+  createdInvitations UserInvitation[] @relation("CreatedInvitations")
+  audit_logs         AuditLog[]       @relation("AuditUser")
+  apiTokens          ApiToken[]       @relation("CreatedApiTokens")
+
+  @@map("users")
+}
+
+model UserPermission {
+  id         String           @id @default(uuid()) @db.Uuid
+  user_id    String           @db.Uuid
+  user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  module     PermissionModule
+  action     PermissionAction
+  granted    Boolean
+  created_at DateTime         @default(now())
+
+  @@unique([user_id, module, action])
+  @@map("user_permissions")
+}
+
+model UserInvitation {
+  id         String    @id @default(uuid()) @db.Uuid
+  token      String    @unique
+  email      String
+  role       UserRole
+  created_by String    @db.Uuid
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+
+  creator User @relation("CreatedInvitations", fields: [created_by], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@map("user_invitations")
+}
+
+model Setting {
+  id         String   @id @default(uuid()) @db.Uuid
+  key        String   @unique
+  value      String
+  updated_at DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String?  @db.Uuid
+  user        User?    @relation("AuditUser", fields: [user_id], references: [id])
+  action      String
+  entity_type String
+  entity_id   String?
+  metadata    Json?
+  created_at  DateTime @default(now())
+
+  @@index([created_at])
+  @@map("audit_logs")
+}
+
+model WebhookLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  source      String
+  raw_payload Json
+  processed   Boolean  @default(false)
+  error       String?
+  created_at  DateTime @default(now())
+
+  @@index([created_at])
+  @@map("webhook_logs")
+}
+
+model EmailLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  to         String
+  subject    String
+  template   String
+  status     String
+  error      String?
+  created_at DateTime @default(now())
+
+  @@index([created_at])
+  @@map("email_logs")
+}
+
+model ApiToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String
+  key_hash     String    @unique // SHA-256 of the raw bearer token
+  key_prefix   String            // first 8 chars, shown in UI
+  scopes       String[]
+  created_by   String    @db.Uuid
+  expires_at   DateTime?
+  revoked_at   DateTime?
+  last_used_at DateTime?
+  created_at   DateTime  @default(now())
+
+  creator User @relation("CreatedApiTokens", fields: [created_by], references: [id])
+
+  @@index([key_hash])
+  @@map("api_tokens")
+}
