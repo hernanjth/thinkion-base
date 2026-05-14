@@ -14,6 +14,43 @@
  *     </BaseDocument>
  *   );
  *   const url = await uploadPdfToStorage(buffer, `docs/${id}.pdf`);
+ *
+ * ── Page-break rules (apply in your children blocks) ──────────────────────────
+ *
+ * RULE 1 — wrap={false} must go on a plain outer View, NOT on a styled View.
+ * react-pdf ignores wrap={false} when the View has flex/border/borderRadius styles.
+ *
+ *   // ❌ wrap ignored — View has complex styles
+ *   <View style={{ borderWidth: 1, borderRadius: 6, flexDirection: "row" }} wrap={false}>
+ *
+ *   // ✅ neutral wrapper holds wrap; styled View lives inside
+ *   <View wrap={false}>
+ *     <View style={{ borderWidth: 1, borderRadius: 6 }}>...</View>
+ *   </View>
+ *
+ * RULE 2 — For blocks that might be longer than one page (e.g. conditions text),
+ * prefer break={true} over wrap={false}. break forces the block to always start
+ * on a new page — predictable and never gets cut mid-content.
+ *
+ *   <View wrap={false} break={hasLongContent}>
+ *     <View style={s.block}>...</View>
+ *   </View>
+ *
+ * RULE 3 — To keep a section header together with the first row of its table,
+ * wrap both in a plain View with wrap={false}. Individual rows can still break.
+ *
+ *   <View style={s.section}>
+ *     <View wrap={false} style={{ overflow: "hidden" }}>
+ *       <View style={s.sectionHead}>...</View>
+ *       <View style={s.tableHeader}>...</View>
+ *     </View>
+ *     {rows.map(...)}   ← these can still break across pages
+ *   </View>
+ *
+ * RULE 4 — Use minPresenceAhead={N} on separators/dividers so they don't
+ * render alone at the bottom of a page without the content that follows them.
+ *
+ *   <View style={s.divider} minPresenceAhead={100}>...</View>
  */
 
 import React from "react";
