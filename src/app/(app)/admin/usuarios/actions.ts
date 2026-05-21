@@ -14,7 +14,7 @@ export async function updateUserRole(userId: string, role: UserRole) {
   if (me.role !== "ADMIN") throw new Error("Solo un admin puede cambiar roles");
 
   await prisma.user.update({ where: { id: userId }, data: { role } });
-  revalidateTag("user-permissions");
+  revalidateTag("user-permissions", "default");
   revalidatePath("/admin/usuarios");
 }
 

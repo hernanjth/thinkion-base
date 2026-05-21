@@ -9,7 +9,7 @@
  *   const url = await uploadPdfToStorage(buffer, `my-folder/${id}.pdf`);
  */
 
-import { renderToBuffer } from "@react-pdf/renderer";
+import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
@@ -23,7 +23,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
  *   import { MyPdfDocument } from "@/components/pdf/pdf-template";
  *   const buffer = await generatePdf(<MyPdfDocument title="Invoice #1" />);
  */
-export async function generatePdf(element: ReactElement): Promise<Buffer> {
+export async function generatePdf(element: ReactElement<DocumentProps>): Promise<Buffer> {
   const buffer = await renderToBuffer(element);
   return Buffer.from(buffer);
 }
