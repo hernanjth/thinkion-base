@@ -12,6 +12,10 @@ const VERIFIED_COOKIE_OPTS = {
   path: "/",
 };
 
+// Cookie set by /api/mcp/oauth/authorize when the user needs to log in first.
+// After successful login we redirect back to the authorize URL.
+const MCP_OAUTH_PENDING_COOKIE = "mcp_oauth_pending";
+
 // TODO: Update this to your actual Google Workspace domain
 const ALLOWED_DOMAIN = "thinkion.com.ar";
 
@@ -61,7 +65,23 @@ export async function GET(request: Request) {
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
 
   if (existing) {
-    // Re-login of an existing user — allow without token
+    // Re-login of an existing user — check if we were in the middle of an OAuth flow
+    const pendingOAuth = cookieStore.get(MCP_OAUTH_PENDING_COOKIE)?.value;
+    if (pendingOAuth) {
+      try {
+        const params = JSON.parse(pendingOAuth) as Record<string, string>;
+        const authorizeUrl = new URL(`${origin}/api/mcp/oauth/authorize`);
+        Object.entries(params).forEach(([k, v]) => {
+          if (v) authorizeUrl.searchParams.set(k, v);
+        });
+        const res = NextResponse.redirect(authorizeUrl.toString());
+        res.cookies.set(VERIFIED_COOKIE, "1", VERIFIED_COOKIE_OPTS);
+        res.cookies.set(MCP_OAUTH_PENDING_COOKIE, "", { maxAge: 0, path: "/" });
+        return res;
+      } catch {
+        // Invalid/corrupt cookie — fall through to normal redirect
+      }
+    }
     const res = NextResponse.redirect(`${origin}${HOME_ROUTE}`);
     res.cookies.set(VERIFIED_COOKIE, "1", VERIFIED_COOKIE_OPTS);
     return res;
@@ -113,6 +133,24 @@ export async function GET(request: Request) {
       data: { used_at: new Date() },
     }),
   ]);
+
+  // Check if we were in the middle of an OAuth flow (new user accepting invite)
+  const pendingOAuth = cookieStore.get(MCP_OAUTH_PENDING_COOKIE)?.value;
+  if (pendingOAuth) {
+    try {
+      const params = JSON.parse(pendingOAuth) as Record<string, string>;
+      const authorizeUrl = new URL(`${origin}/api/mcp/oauth/authorize`);
+      Object.entries(params).forEach(([k, v]) => {
+        if (v) authorizeUrl.searchParams.set(k, v);
+      });
+      const res = NextResponse.redirect(authorizeUrl.toString());
+      res.cookies.set(VERIFIED_COOKIE, "1", VERIFIED_COOKIE_OPTS);
+      res.cookies.set(MCP_OAUTH_PENDING_COOKIE, "", { maxAge: 0, path: "/" });
+      return res;
+    } catch {
+      // Invalid/corrupt cookie — fall through to normal redirect
+    }
+  }
 
   const res = NextResponse.redirect(`${origin}${HOME_ROUTE}`);
   res.cookies.set(VERIFIED_COOKIE, "1", VERIFIED_COOKIE_OPTS);
